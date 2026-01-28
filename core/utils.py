@@ -273,3 +273,137 @@ def send_sms_alert_with_fatigue_check(
     success, sms_message = send_sms_alert(phone_number, custom_message)
     
     return success, sms_message
+
+
+# Voice Call Integration (Africa's Talking)
+
+
+def make_voice_call(phone_number: str, message: str = None) -> Tuple[bool, str]:
+    """
+    Make an outbound voice call with text-to-speech message.
+    
+    Uses Africa's Talking Voice API to call a driver and play a TTS message.
+    
+    Args:
+        phone_number: Recipient phone number (include country code)
+        message: Message to be spoken (text-to-speech). Uses default if None.
+    
+    Returns:
+        Tuple of (success: bool, response_message: str)
+    """
+    # Default voice alert message
+    DEFAULT_VOICE_MESSAGE = "LifeSaver Alert. Dangerous road section ahead. Reduce speed."
+    
+    voice_message = message or DEFAULT_VOICE_MESSAGE
+    
+    username = os.getenv('AT_USERNAME')
+    api_key = os.getenv('AT_API_KEY')
+    
+    if not username or not api_key:
+        return False, "Africa's Talking credentials not configured. Set AT_USERNAME and AT_API_KEY environment variables."
+    
+    try:
+        import africastalking
+        
+        # Initialize Africa's Talking
+        africastalking.initialize(username, api_key)
+        voice = africastalking.Voice
+        
+        # Make the call
+        response = voice.call([phone_number])
+        
+        # Check response
+        if response and 'entries' in response:
+            entries = response['entries']
+            
+            if entries and len(entries) > 0:
+                entry = entries[0]
+                
+                if entry.get('status') == 'Queued':
+                    return True, f"Voice call initiated to {phone_number}"
+                else:
+                    error = entry.get('status', 'Unknown error')
+                    return False, f"Voice call failed: {error}"
+        
+        return False, "Unexpected response from Africa's Talking API"
+        
+    except ImportError:
+        return False, "africastalking package not installed. Run: pip install africastalking"
+    except Exception as e:
+        return False, f"Error initiating voice call: {str(e)}"
+
+
+def send_voice_alert_with_fallback(
+    phone_number: str,
+    hazard,
+    voice_message: str = None,
+    sms_message: str = None
+) -> Tuple[bool, str, str]:
+    """
+    Send voice alert with SMS fallback if voice call fails.
+    
+    Tries to make a voice call first. If it fails, automatically sends SMS.
+    Includes alert fatigue prevention.
+    
+    Args:
+        phone_number: Recipient phone number
+        hazard: The Hazard instance
+        voice_message: Custom voice message
+        sms_message: Custom SMS message (if fallback needed)
+    
+    Returns:
+        Tuple of (success: bool, primary_response: str, fallback_response: str)
+        - success: True if either voice or SMS succeeded
+        - primary_response: Voice call result message
+        - fallback_response: SMS fallback result (or empty string)
+    """
+    # Check alert fatigue first
+    alert_allowed, fatigue_message = send_alert_with_fatigue_check(
+        phone_number,
+        hazard,
+        channel='VOICE',
+        alert_cooldown_minutes=30
+    )
+    
+    if not alert_allowed:
+        return False, fatigue_message, ""
+    
+    # Try voice call
+    voice_success, voice_message_resp = make_voice_call(phone_number, voice_message)
+    
+    if voice_success:
+        return True, voice_message_resp, ""
+    
+    # Voice failed - fallback to SMS
+    sms_success, sms_response = send_sms_alert(phone_number, sms_message)
+    
+    return sms_success, f"Voice call failed, fallback to SMS: {voice_message_resp}", sms_response
+
+
+def send_voice_alert(
+    phone_number: str,
+    message: str = None
+) -> Tuple[bool, str]:
+    """
+    Send a voice alert with fatigue prevention.
+    
+    Args:
+        phone_number: Recipient phone number
+        message: Custom message for TTS
+    
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
+    # Check fatigue
+    alert_allowed, fatigue_message = send_alert_with_fatigue_check(
+        phone_number,
+        hazard=None,
+        channel='VOICE',
+        alert_cooldown_minutes=30
+    )
+    
+    if not alert_allowed:
+        return False, fatigue_message
+    
+    # Send voice call
+    return make_voice_call(phone_number, message)

@@ -1,12 +1,19 @@
-# Africa's Talking SMS Integration Guide
+# Africa's Talking SMS & Voice Integration Guide
 
 ## Overview
 
-SafeRoute integrates with Africa's Talking SMS API to send real-time alerts to drivers about hazards on the road.
+SafeRoute integrates with Africa's Talking to send real-time alerts to drivers about hazards:
+- **SMS** - Text message alerts
+- **Voice** - Phone calls with text-to-speech
 
-**Default Alert Message:**
+**Default SMS Message:**
 ```
 ⚠️ LifeSaver Alert: Dangerous road section ahead. Please slow down.
+```
+
+**Default Voice Message:**
+```
+LifeSaver Alert. Dangerous road section ahead. Reduce speed.
 ```
 
 ## Setup Instructions
@@ -121,6 +128,77 @@ if sms:
 else:
     print("Credentials not configured")
 ```
+
+## Voice Call API
+
+### 1. `make_voice_call(phone_number, message=None)`
+
+Make an outbound voice call with text-to-speech message.
+
+```python
+from core.utils import make_voice_call
+
+# Send default voice alert
+success, message = make_voice_call("+254712345678")
+
+# Send custom voice message
+success, message = make_voice_call(
+    "+254712345678", 
+    "Alert. Accident ahead. Reduce speed immediately."
+)
+
+if success:
+    print("Voice call initiated")
+else:
+    print(f"Error: {message}")
+```
+
+**Parameters:**
+- `phone_number` (str): Recipient phone with country code
+- `message` (str, optional): TTS message. Uses default if None.
+
+**Returns:**
+- `(success: bool, message: str)`
+
+### 2. `send_voice_alert_with_fallback(phone_number, hazard, voice_message=None, sms_message=None)`
+
+Send voice alert with automatic SMS fallback if voice fails.
+
+```python
+from core.utils import send_voice_alert_with_fallback
+from core.models import Hazard
+
+hazard = Hazard.objects.get(id=1)
+
+# Try voice call, fallback to SMS
+success, voice_response, sms_response = send_voice_alert_with_fallback(
+    "+254712345678",
+    hazard,
+    voice_message="Critical hazard ahead.",
+    sms_message="🚨 CRITICAL HAZARD"
+)
+
+if success:
+    if sms_response:
+        print(f"SMS fallback sent: {sms_response}")
+    else:
+        print("Voice call initiated successfully")
+```
+
+**Parameters:**
+- `phone_number` (str): Recipient phone
+- `hazard` (Hazard): The hazard instance
+- `voice_message` (str, optional): Custom voice message
+- `sms_message` (str, optional): Fallback SMS message
+
+**Returns:**
+- `(success: bool, voice_response: str, sms_response: str)`
+
+**Features:**
+- Tries voice call first (more urgent)
+- Falls back to SMS if voice fails
+- Includes alert fatigue prevention
+- Returns details about what was sent
 
 ## Testing Locally
 

@@ -1,13 +1,15 @@
 """
-Practical examples of SMS integration in SafeRoute.
+Practical examples of SMS and Voice integration in SafeRoute.
 
-These examples show real-world usage patterns.
+These examples show real-world usage patterns for both SMS and Voice alerts.
 """
 
 from core.models import Hazard
 from core.utils import (
     send_sms_alert,
     send_sms_alert_with_fatigue_check,
+    make_voice_call,
+    send_voice_alert_with_fallback,
     is_driver_near_hazard,
     haversine_distance
 )
@@ -187,9 +189,107 @@ def example_6_no_fatigue_spam():
     print()
 
 
+def example_7_voice_call():
+    """
+    Example 7: Make a voice call alert.
+    """
+    print("EXAMPLE 7: Make Voice Call Alert")
+    print("-" * 60)
+    
+    driver_phone = "+254712345678"
+    
+    print(f"Recipient: {driver_phone}")
+    print("Message: LifeSaver Alert. Dangerous road section ahead. Reduce speed.\n")
+    
+    success, message = make_voice_call(driver_phone)
+    
+    print(f"Status: {'✓ Initiated' if success else '✗ Failed'}")
+    print(f"Response: {message}")
+    print()
+
+
+def example_8_voice_call_custom_message():
+    """
+    Example 8: Make voice call with custom TTS message.
+    """
+    print("EXAMPLE 8: Voice Call with Custom Message")
+    print("-" * 60)
+    
+    driver_phone = "+254712345678"
+    custom_voice_msg = "Alert. Severe accident ahead on the main highway. Exit immediately."
+    
+    print(f"Recipient: {driver_phone}")
+    print(f"Message: {custom_voice_msg}\n")
+    
+    success, message = make_voice_call(driver_phone, custom_voice_msg)
+    
+    print(f"Status: {'✓ Initiated' if success else '✗ Failed'}")
+    print(f"Response: {message}")
+    print()
+
+
+def example_9_voice_with_sms_fallback():
+    """
+    Example 9: Voice call with automatic SMS fallback.
+    
+    If voice call fails, automatically sends SMS instead.
+    """
+    print("EXAMPLE 9: Voice Call with SMS Fallback")
+    print("-" * 60)
+    
+    hazard = Hazard.objects.first()
+    if not hazard:
+        print("No hazards found")
+        return
+    
+    driver_phone = "+254712345678"
+    
+    print(f"Recipient: {driver_phone}")
+    print(f"Hazard: {hazard.get_type_display()}")
+    print(f"Strategy: Try voice call, fallback to SMS if it fails\n")
+    
+    success, voice_response, sms_response = send_voice_alert_with_fallback(
+        driver_phone,
+        hazard,
+        voice_message="Critical alert. Dangerous road ahead. Slow down now.",
+        sms_message="⚠️ ALERT: Dangerous road ahead. Reduce speed."
+    )
+    
+    print(f"Primary (Voice): {voice_response}")
+    if sms_response:
+        print(f"Fallback (SMS): {sms_response}")
+    print(f"\nOverall Status: {'✓ Alert Sent' if success else '✗ Failed'}")
+    print()
+
+
+def example_10_voice_fatigue_prevention():
+    """
+    Example 10: Demonstrate voice call fatigue prevention.
+    """
+    print("EXAMPLE 10: Voice Call Fatigue Prevention")
+    print("-" * 60)
+    
+    driver_phone = "+254712345678"
+    
+    print(f"Attempting multiple voice calls to: {driver_phone}\n")
+    
+    # First call - should succeed
+    print("Attempt 1: First voice call...")
+    success1, msg1 = make_voice_call(driver_phone)
+    print(f"  Status: {'✓ Initiated' if success1 else '✗ Failed'}")
+    print(f"  Response: {msg1}\n")
+    
+    # Second call - should fail (fatigue check in real scenario)
+    print("Attempt 2: Second voice call immediately...")
+    success2, msg2 = make_voice_call(driver_phone)
+    print(f"  Status: {'✓ Initiated' if success2 else '✗ Failed'}")
+    print(f"  Response: {msg2}")
+    print()
+
+
 if __name__ == "__main__":
     print("\n" + "="*60)
-    print("SAFEROUTE SMS PRACTICAL EXAMPLES")
+    print("SAFEROUTE SMS & VOICE PRACTICAL EXAMPLES")
     print("="*60 + "\n")
     
     # Note: These require Django setup and should be run in shell
@@ -201,4 +301,6 @@ if __name__ == "__main__":
     print()
     print("Or run individual examples:")
     print("  >>> from core.sms_examples import example_1_basic_alert")
+    print("  >>> from core.sms_examples import example_7_voice_call")
+
     print("  >>> example_1_basic_alert()")

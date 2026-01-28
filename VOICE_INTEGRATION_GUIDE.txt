@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# Voice Call Integration Testing Guide
+# ====================================
+
+cat << 'EOF'
+
+SAFEROUTE VOICE CALL INTEGRATION
+=================================
+
+DEFAULT VOICE MESSAGE:
+  "LifeSaver Alert. Dangerous road section ahead. Reduce speed."
+
+QUICK START:
+1. Install: pip install africastalking
+2. Configure: cp .env.example .env && edit with credentials
+3. Test: python manage.py shell
+
+MAIN FUNCTIONS:
+
+1. make_voice_call(phone_number, message=None)
+   - Make outbound voice call with TTS
+   - Returns (success, message)
+
+   Usage:
+   from core.utils import make_voice_call
+   success, msg = make_voice_call("+254712345678")
+
+2. send_voice_alert_with_fallback(phone, hazard, voice_msg=None, sms_msg=None)
+   - Voice call with automatic SMS fallback
+   - Returns (success, voice_response, sms_response)
+
+   Usage:
+   from core.utils import send_voice_alert_with_fallback
+   from core.models import Hazard
+   
+   hazard = Hazard.objects.first()
+   success, voice, sms = send_voice_alert_with_fallback(
+       "+254712345678",
+       hazard,
+       voice_message="Alert. Accident ahead.",
+       sms_message="ACCIDENT AHEAD"
+   )
+   
+   if success:
+       if sms:
+           print("Fallback SMS sent")
+       else:
+           print("Voice call initiated")
+
+TESTING:
+
+Test basic voice call:
+  python manage.py shell
+  >>> from core.utils import make_voice_call
+  >>> success, msg = make_voice_call("+254712345678")
+  >>> print(success, msg)
+
+Test with fallback:
+  python manage.py shell
+  >>> from core.utils import send_voice_alert_with_fallback
+  >>> from core.models import Hazard
+  >>> hazard = Hazard.objects.first()
+  >>> success, voice, sms = send_voice_alert_with_fallback("+254712345678", hazard)
+  >>> print(success, voice, sms)
+
+Run test suite:
+  python manage.py shell
+  >>> from core.voice_tests import run_all_tests
+  >>> run_all_tests()
+
+FEATURES:
+
+✓ Text-to-speech voice messages
+✓ Automatic SMS fallback if voice fails
+✓ Alert fatigue prevention (30 min cooldown)
+✓ Custom message support
+✓ Production-ready error handling
+✓ Simple hackathon-friendly API
+
+ALERT LOGIC:
+
+Voice Call First (more urgent):
+  ├─ Try to make voice call
+  ├─ If success → Done (driver gets real-time call)
+  └─ If fail → Fallback to SMS (ensures driver gets alert)
+
+Fatigue Prevention:
+  ├─ Check if alert sent in last 30 minutes
+  ├─ If yes → Block (prevent spam)
+  └─ If no → Send alert
+
+ERROR HANDLING:
+
+All functions return (success: bool, message: str)
+
+Common errors:
+  • "Credentials not configured" → Set AT_USERNAME and AT_API_KEY
+  • "voice.call failed" → Invalid phone number format
+  • "africastalking not installed" → pip install africastalking
+
+PHONE NUMBER FORMAT:
+
+Use international format with country code:
+  ✓ +254712345678 (Kenya)
+  ✓ +256701234567 (Uganda)
+  ✓ +233501234567 (Ghana)
+  ✗ 0712345678 (missing country code)
+
+MESSAGE LENGTH:
+
+Recommended: 20-60 characters per message
+TTS reads ~15 characters per second
+
+Short: "Slow down ahead" (14 chars)
+Good: "Accident ahead. Reduce speed now." (34 chars)
+Better: "Critical alert. Severe accident reported ahead. Reduce speed immediately." (76 chars)
+
+EOF
