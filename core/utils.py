@@ -1,4 +1,5 @@
 import math
+import os
 from typing import Tuple
 from datetime import timedelta
 from django.utils import timezone
@@ -163,3 +164,112 @@ def send_alert_with_fatigue_check(
         return True, f"Alert sent to {phone_number} via {channel} for hazard {hazard.id}"
     except Exception as e:
         return False, f"Error sending alert: {str(e)}"
+
+
+# SMS Integration (Africa's Talking)
+
+
+def get_africastalking_client():
+    """
+    Initialize Africa's Talking SMS client with credentials from environment variables.
+    
+    Environment Variables Required:
+        AT_USERNAME: Your Africa's Talking username
+        AT_API_KEY: Your Africa's Talking API key
+    
+    Returns:
+        SMS client instance or None if credentials are missing
+    """
+    try:
+        import africastalking
+    except ImportError:
+        return None
+    
+    username = os.getenv('AT_USERNAME')
+    api_key = os.getenv('AT_API_KEY')
+    
+    if not username or not api_key:
+        return None
+    
+    # Initialize Africa's Talking
+    africastalking.initialize(username, api_key)
+    sms = africastalking.SMS
+    
+    return sms
+
+
+def send_sms_alert(phone_number: str, custom_message: str = None) -> Tuple[bool, str]:
+    """
+    Send SMS alert via Africa's Talking API.
+    
+    Args:
+        phone_number: Recipient phone number (include country code, e.g., +254712345678)
+        custom_message: Optional custom message. If None, uses default SafeRoute alert message.
+    
+    Returns:
+        Tuple of (success: bool, response_message: str)
+    """
+    # Default SafeRoute alert message
+    DEFAULT_ALERT = "⚠️ LifeSaver Alert: Dangerous road section ahead. Please slow down."
+    
+    message = custom_message or DEFAULT_ALERT
+    
+    # Get SMS client
+    sms_client = get_africastalking_client()
+    
+    if not sms_client:
+        return False, "Africa's Talking credentials not configured. Set AT_USERNAME and AT_API_KEY environment variables."
+    
+    try:
+        # Send SMS
+        response = sms_client.send(message, [phone_number])
+        
+        # Check response
+        if response['SMSMessageData']['Recipients']:
+            recipient = response['SMSMessageData']['Recipients'][0]
+            
+            if recipient['status'] == 'Success':
+                return True, f"SMS sent successfully to {phone_number}"
+            else:
+                error_msg = recipient.get('status', 'Unknown error')
+                return False, f"SMS delivery failed: {error_msg}"
+        else:
+            return False, "No recipients in response"
+            
+    except Exception as e:
+        return False, f"Error sending SMS: {str(e)}"
+
+
+def send_sms_alert_with_fatigue_check(
+    phone_number: str,
+    hazard,
+    custom_message: str = None
+) -> Tuple[bool, str]:
+    """
+    Send SMS alert with alert fatigue prevention.
+    
+    Combines fatigue check and SMS sending in one operation.
+    
+    Args:
+        phone_number: Recipient phone number
+        hazard: The Hazard instance
+        custom_message: Optional custom message
+    
+    Returns:
+        Tuple of (success: bool, response_message: str)
+    """
+    # First check fatigue
+    alert_allowed, fatigue_message = send_alert_with_fatigue_check(
+        phone_number, 
+        hazard, 
+        channel='SMS',
+        alert_cooldown_minutes=30
+    )
+    
+    if not alert_allowed:
+        return False, fatigue_message
+    
+    # If allowed, send the SMS
+    success, sms_message = send_sms_alert(phone_number, custom_message)
+    
+    return success, sms_message
