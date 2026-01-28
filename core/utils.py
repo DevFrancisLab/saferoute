@@ -23,6 +23,12 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     # Earth's radius in meters
     EARTH_RADIUS_METERS = 6371000
     
+    # Convert to float (handle string inputs from database)
+    lat1 = float(lat1)
+    lon1 = float(lon1)
+    lat2 = float(lat2)
+    lon2 = float(lon2)
+    
     # Convert decimal degrees to radians
     lat1_rad = math.radians(lat1)
     lon1_rad = math.radians(lon1)

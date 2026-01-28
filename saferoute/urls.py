@@ -16,7 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from core import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    
+    # USSD Webhook - Africa's Talking POST requests
+    path('ussd/webhook/', views.ussd_webhook, name='ussd_webhook'),
+    
+    # USSD Test - Development/testing
+    path('ussd/test/', views.ussd_test, name='ussd_test'),
 ]
