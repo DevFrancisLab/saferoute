@@ -26,4 +26,8 @@ urlpatterns = [
     
     # USSD Test - Development/testing
     path('ussd/test/', views.ussd_test, name='ussd_test'),
+    
+    # Demo Endpoints - Hackathon demonstrations only
+    path('demo/driver-alert/', views.demo_driver_alert, name='demo_driver_alert'),
+    path('demo/driver-alert-ui/', views.demo_driver_alert_ui, name='demo_driver_alert_ui'),
 ]
