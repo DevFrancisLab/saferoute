@@ -1,5 +1,8 @@
 import math
 from typing import Tuple
+from datetime import timedelta
+from django.utils import timezone
+from django.db.models import Q
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -89,3 +92,74 @@ def get_distance_to_hazard(
         formatted = f"{distance / 1000:.2f} km"
     
     return distance, formatted
+
+
+# Alert Service Functions
+
+
+def has_recent_alert(phone_number: str, hazard_id: int, minutes: int = 30) -> bool:
+    """
+    Check if an alert was recently sent to this phone number for this hazard.
+    
+    Prevents alert fatigue by not sending duplicate alerts within the specified timeframe.
+    
+    Args:
+        phone_number: The phone number to check
+        hazard_id: The hazard ID to check
+        minutes: Time window to check (default: 30 minutes)
+    
+    Returns:
+        True if a recent alert exists, False otherwise
+    """
+    from .models import AlertLog
+    
+    time_threshold = timezone.now() - timedelta(minutes=minutes)
+    
+    recent_alert = AlertLog.objects.filter(
+        phone_number=phone_number,
+        hazard_id=hazard_id,
+        sent_at__gte=time_threshold
+    ).exists()
+    
+    return recent_alert
+
+
+def send_alert_with_fatigue_check(
+    phone_number: str, 
+    hazard, 
+    channel: str = 'SMS',
+    alert_cooldown_minutes: int = 30
+) -> Tuple[bool, str]:
+    """
+    Send an alert to a driver, with alert fatigue prevention.
+    
+    Checks if an alert was recently sent to the same phone number for the same hazard.
+    If not, creates a new AlertLog entry and returns True.
+    
+    Args:
+        phone_number: The driver's phone number
+        hazard: The Hazard instance to alert about
+        channel: Alert channel ('SMS' or 'VOICE')
+        alert_cooldown_minutes: Minutes to wait before sending another alert (default: 30)
+    
+    Returns:
+        Tuple of (alert_sent: bool, message: str)
+        - alert_sent: True if alert was sent, False if skipped due to recent alert
+        - message: Descriptive message about what happened
+    """
+    from .models import AlertLog
+    
+    # Check if a recent alert exists
+    if has_recent_alert(phone_number, hazard.id, alert_cooldown_minutes):
+        return False, f"Alert for hazard {hazard.id} already sent to {phone_number} within last {alert_cooldown_minutes} minutes"
+    
+    # Create new alert log entry
+    try:
+        alert_log = AlertLog.objects.create(
+            phone_number=phone_number,
+            hazard=hazard,
+            channel=channel
+        )
+        return True, f"Alert sent to {phone_number} via {channel} for hazard {hazard.id}"
+    except Exception as e:
+        return False, f"Error sending alert: {str(e)}"

@@ -1,14 +1,21 @@
 """
-Example usage of the Haversine distance function for SafeRoute.
+Example usage of the Haversine distance function and alert service for SafeRoute.
 
 This demonstrates how to use the distance utilities to check if a driver
-is near a hazard location.
+is near a hazard location and prevent alert fatigue.
 """
 
-from core.utils import haversine_distance, is_driver_near_hazard, get_distance_to_hazard
+from core.utils import (
+    haversine_distance, 
+    is_driver_near_hazard, 
+    get_distance_to_hazard,
+    send_alert_with_fatigue_check,
+    has_recent_alert
+)
+from core.models import Hazard
 
 
-def example_usage():
+def example_distance_usage():
     """Example: Check if a driver is within 300 meters of a hazard."""
     
     # Example coordinates (San Francisco, CA area)
@@ -47,5 +54,62 @@ def example_usage():
     print(f"Formatted distance: {formatted}")
 
 
+def example_alert_fatigue_prevention():
+    """Example: Prevent alert fatigue by checking AlertLog."""
+    
+    print("\n" + "="*60)
+    print("ALERT FATIGUE PREVENTION EXAMPLE")
+    print("="*60 + "\n")
+    
+    # Create a test hazard if it doesn't exist
+    hazard, created = Hazard.objects.get_or_create(
+        type='BLACKSPOT',
+        latitude=37.7749,
+        longitude=-122.4194,
+        defaults={
+            'severity': 3,
+        }
+    )
+    
+    phone_number = "+1234567890"
+    
+    # First alert - should be sent
+    print(f"Attempt 1: Sending alert to {phone_number}...")
+    sent, message = send_alert_with_fatigue_check(phone_number, hazard, channel='SMS')
+    print(f"  Result: {message}\n")
+    
+    # Second alert immediately - should be blocked
+    print(f"Attempt 2: Sending another alert immediately...")
+    sent, message = send_alert_with_fatigue_check(phone_number, hazard, channel='SMS')
+    print(f"  Result: {message}\n")
+    
+    # Check recent alerts directly
+    has_recent = has_recent_alert(phone_number, hazard.id, minutes=30)
+    print(f"Has recent alert (30 min window): {has_recent}\n")
+    
+    # Try with different phone number - should be sent
+    different_phone = "+9876543210"
+    print(f"Attempt 3: Sending alert to different phone number...")
+    sent, message = send_alert_with_fatigue_check(different_phone, hazard, channel='VOICE')
+    print(f"  Result: {message}\n")
+    
+    # Try with different hazard - should be sent
+    hazard2, _ = Hazard.objects.get_or_create(
+        type='ACCIDENT',
+        latitude=37.7800,
+        longitude=-122.4150,
+        defaults={
+            'severity': 5,
+        }
+    )
+    
+    print(f"Attempt 4: Sending alert for different hazard...")
+    sent, message = send_alert_with_fatigue_check(phone_number, hazard2, channel='SMS')
+    print(f"  Result: {message}\n")
+
+
 if __name__ == "__main__":
-    example_usage()
+    example_distance_usage()
+    # Uncomment to run alert example (requires Django setup):
+    # example_alert_fatigue_prevention()
+
